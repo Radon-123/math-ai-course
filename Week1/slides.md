@@ -62,7 +62,7 @@ By the Alternating Series Test, the series converges at $x\in\{-1,1\}$
 
 ---
 
-## Visualization of Convergence
+## Visualization of Convergence (Summary)
 
 <style scoped>
   section {
