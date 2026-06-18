@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>1D Poisson Equation with Dirichlet Boundary Conditions</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5b6876;
+      --panel: #ffffff;
+      --line: #d9e1e8;
+      --grid: #edf2f6;
+      --accent: #0f7c80;
+      --accent-strong: #095b5f;
+      --warn: #b55d12;
+      --bg: #f5f7fa;
+      --shadow: 0 14px 36px rgba(23, 32, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(15, 124, 128, 0.08), transparent 38%),
+        linear-gradient(315deg, rgba(181, 93, 18, 0.08), transparent 32%),
+        var(--bg);
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.75rem, 4vw, 3.2rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .equation {
+      margin: 0 16px 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(23, 32, 42, 0.06);
+      text-align: center;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .canvas-wrap,
+    .controls {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      overflow: hidden;
+      min-height: 560px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: min(64vh, 620px);
+      min-height: 520px;
+    }
+
+    .legend {
+      position: absolute;
+      right: 16px;
+      top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid rgba(217, 225, 232, 0.8);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(8px);
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .legend span {
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 22px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .swatch.points {
+      width: 10px;
+      height: 10px;
+      background: var(--warn);
+    }
+
+    .controls {
+      padding: 18px;
+    }
+
+    .control {
+      display: grid;
+      gap: 10px;
+      padding: 0 0 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .control:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: baseline;
+      font-weight: 750;
+    }
+
+    output {
+      min-width: 4.5ch;
+      text-align: right;
+      color: var(--accent-strong);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .readout {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      min-height: 74px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .metric span {
+      font-size: 1.35rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      margin-top: 16px;
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 880px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .equation {
+        white-space: normal;
+      }
+
+      .canvas-wrap {
+        min-height: 460px;
+      }
+
+      canvas {
+        height: 58vh;
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Poisson Solution Shape</h1>
+        <p>Move the grid and boundary values to see how a discrete 1D Dirichlet problem bends between fixed endpoint values.</p>
+      </div>
+    </header>
+
+    <section class="layout" aria-label="Interactive Poisson equation visualization">
+      <div class="canvas-wrap">
+        <canvas id="solutionCanvas" aria-label="Animated plot of the Poisson equation solution"></canvas>
+        <div class="equation" id="equationText">-D u''(x) = c + A sin(kπx), &nbsp; u(0)=a, &nbsp; u(1)=b</div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="swatch"></i>solution curve</span>
+          <span><i class="swatch points"></i>domain points</span>
+        </div>
+      </div>
+
+      <aside class="controls">
+        <div class="control">
+          <div class="label-row">
+            <label for="points">Domain points, n</label>
+            <output id="pointsValue" for="points">18</output>
+          </div>
+          <input id="points" type="range" min="1" max="50" step="1" value="18">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="leftBoundary">Left boundary, a</label>
+            <output id="leftValue" for="leftBoundary">0.00</output>
+          </div>
+          <input id="leftBoundary" type="range" min="-2" max="2" step="0.05" value="0">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="rightBoundary">Right boundary, b</label>
+            <output id="rightValue" for="rightBoundary">0.00</output>
+          </div>
+          <input id="rightBoundary" type="range" min="-2" max="2" step="0.05" value="0">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="diffusion">Diffusion coefficient, D</label>
+            <output id="diffusionValue" for="diffusion">1.00</output>
+          </div>
+          <input id="diffusion" type="range" min="0.1" max="5" step="0.05" value="1">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="forcingBase">Forcing constant, c</label>
+            <output id="forcingBaseValue" for="forcingBase">1.00</output>
+          </div>
+          <input id="forcingBase" type="range" min="-3" max="3" step="0.05" value="1">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="forcingAmplitude">Forcing wave amplitude, A</label>
+            <output id="forcingAmplitudeValue" for="forcingAmplitude">0.70</output>
+          </div>
+          <input id="forcingAmplitude" type="range" min="-3" max="3" step="0.05" value="0.7">
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="forcingFrequency">Forcing wave frequency, k</label>
+            <output id="forcingFrequencyValue" for="forcingFrequency">2</output>
+          </div>
+          <input id="forcingFrequency" type="range" min="1" max="8" step="1" value="2">
+        </div>
+
+        <div class="readout">
+          <div class="metric">
+            <strong>Spacing h</strong>
+            <span id="spacingValue">0.053</span>
+          </div>
+          <div class="metric">
+            <strong>Unknowns</strong>
+            <span id="unknownValue">18</span>
+          </div>
+        </div>
+
+        <p class="note">The orange samples are the finite-difference grid values. Larger diffusion smooths and flattens the forcing response; stronger forcing bends the solution more.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("solutionCanvas");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      points: document.getElementById("points"),
+      left: document.getElementById("leftBoundary"),
+      right: document.getElementById("rightBoundary"),
+      diffusion: document.getElementById("diffusion"),
+      forcingBase: document.getElementById("forcingBase"),
+      forcingAmplitude: document.getElementById("forcingAmplitude"),
+      forcingFrequency: document.getElementById("forcingFrequency")
+    };
+    const outputs = {
+      points: document.getElementById("pointsValue"),
+      left: document.getElementById("leftValue"),
+      right: document.getElementById("rightValue"),
+      diffusion: document.getElementById("diffusionValue"),
+      forcingBase: document.getElementById("forcingBaseValue"),
+      forcingAmplitude: document.getElementById("forcingAmplitudeValue"),
+      forcingFrequency: document.getElementById("forcingFrequencyValue"),
+      spacing: document.getElementById("spacingValue"),
+      unknowns: document.getElementById("unknownValue")
+    };
+    const equationText = document.getElementById("equationText");
+
+    let current = [];
+    let target = [];
+    let frame = 0;
+
+    function sourceTerm(x, forcingBase, forcingAmplitude, forcingFrequency) {
+      return forcingBase + forcingAmplitude * Math.sin(forcingFrequency * Math.PI * x);
+    }
+
+    function solveTridiagonal(n, left, right, diffusion, forcingBase, forcingAmplitude, forcingFrequency) {
+      const h = 1 / (n + 1);
+      const diagonal = new Array(n).fill(2);
+      const upper = new Array(Math.max(0, n - 1)).fill(-1);
+      const lower = new Array(Math.max(0, n - 1)).fill(-1);
+      const rhs = Array.from({ length: n }, (_, index) => {
+        const x = (index + 1) * h;
+        return (h * h * sourceTerm(x, forcingBase, forcingAmplitude, forcingFrequency)) / diffusion;
+      });
+
+      if (n > 0) {
+        rhs[0] += left;
+        rhs[n - 1] += right;
+      }
+
+      for (let i = 1; i < n; i++) {
+        const factor = lower[i - 1] / diagonal[i - 1];
+        diagonal[i] -= factor * upper[i - 1];
+        rhs[i] -= factor * rhs[i - 1];
+      }
+
+      const interior = new Array(n);
+      interior[n - 1] = rhs[n - 1] / diagonal[n - 1];
+      for (let i = n - 2; i >= 0; i--) {
+        interior[i] = (rhs[i] - upper[i] * interior[i + 1]) / diagonal[i];
+      }
+
+      return [left, ...interior, right];
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function updateTarget() {
+      const n = Number(controls.points.value);
+      const left = Number(controls.left.value);
+      const right = Number(controls.right.value);
+      const diffusion = Number(controls.diffusion.value);
+      const forcingBase = Number(controls.forcingBase.value);
+      const forcingAmplitude = Number(controls.forcingAmplitude.value);
+      const forcingFrequency = Number(controls.forcingFrequency.value);
+      target = solveTridiagonal(n, left, right, diffusion, forcingBase, forcingAmplitude, forcingFrequency);
+
+      if (current.length !== target.length) {
+        current = target.map((value, index) => {
+          const t = index / (target.length - 1);
+          return left * (1 - t) + right * t;
+        });
+      }
+
+      outputs.points.value = n;
+      outputs.left.value = left.toFixed(2);
+      outputs.right.value = right.toFixed(2);
+      outputs.diffusion.value = diffusion.toFixed(2);
+      outputs.forcingBase.value = forcingBase.toFixed(2);
+      outputs.forcingAmplitude.value = forcingAmplitude.toFixed(2);
+      outputs.forcingFrequency.value = forcingFrequency;
+      outputs.spacing.textContent = (1 / (n + 1)).toFixed(3);
+      outputs.unknowns.textContent = n;
+      equationText.textContent = `-${diffusion.toFixed(2)} u''(x) = ${forcingBase.toFixed(2)} ${forcingAmplitude < 0 ? "-" : "+"} ${Math.abs(forcingAmplitude).toFixed(2)} sin(${forcingFrequency}πx),  u(0)=${left.toFixed(2)},  u(1)=${right.toFixed(2)}`;
+    }
+
+    function getPlotBounds(values) {
+      const min = Math.min(...values, -2.2);
+      const max = Math.max(...values, 2.2);
+      const span = Math.max(1, max - min);
+      return {
+        min: min - span * 0.1,
+        max: max + span * 0.1
+      };
+    }
+
+    function drawGrid(width, height, padding, bounds) {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+
+      ctx.strokeStyle = "#edf2f6";
+      ctx.lineWidth = 1;
+      ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.fillStyle = "#697585";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i <= 6; i++) {
+        const y = padding.top + (plotHeight * i) / 6;
+        const value = bounds.max - ((bounds.max - bounds.min) * i) / 6;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+        ctx.fillText(value.toFixed(1), padding.left - 10, y);
+      }
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (let i = 0; i <= 5; i++) {
+        const x = padding.left + (plotWidth * i) / 5;
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.stroke();
+        ctx.fillText((i / 5).toFixed(1), x, height - padding.bottom + 10);
+      }
+
+      const zeroY = mapY(0, height, padding, bounds);
+      if (zeroY > padding.top && zeroY < height - padding.bottom) {
+        ctx.strokeStyle = "#b9c6d3";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, zeroY);
+        ctx.lineTo(width - padding.right, zeroY);
+        ctx.stroke();
+      }
+    }
+
+    function mapX(index, count, width, padding) {
+      return padding.left + ((width - padding.left - padding.right) * index) / (count - 1);
+    }
+
+    function mapY(value, height, padding, bounds) {
+      const usable = height - padding.top - padding.bottom;
+      return padding.top + ((bounds.max - value) / (bounds.max - bounds.min)) * usable;
+    }
+
+    function drawSolution(width, height, padding, bounds) {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      ctx.strokeStyle = "#0f7c80";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      current.forEach((value, index) => {
+        const x = mapX(index, current.length, width, padding);
+        const y = mapY(value, height, padding, bounds);
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(9, 91, 95, 0.25)";
+      ctx.lineWidth = 1;
+      current.forEach((value, index) => {
+        const x = mapX(index, current.length, width, padding);
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.stroke();
+      });
+
+      current.forEach((value, index) => {
+        const x = mapX(index, current.length, width, padding);
+        const y = mapY(value, height, padding, bounds);
+        const isBoundary = index === 0 || index === current.length - 1;
+        ctx.fillStyle = isBoundary ? "#17202a" : "#b55d12";
+        ctx.beginPath();
+        ctx.arc(x, y, isBoundary ? 7 : 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    }
+
+    function drawLabels(width, height, padding) {
+      ctx.fillStyle = "#17202a";
+      ctx.font = "700 14px Inter, ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("x", width - padding.right + 18, height - padding.bottom + 4);
+
+      ctx.save();
+      ctx.translate(22, padding.top - 8);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "right";
+      ctx.fillText("u(x)", 0, 0);
+      ctx.restore();
+    }
+
+    function animate() {
+      frame += 1;
+      for (let i = 0; i < target.length; i++) {
+        current[i] += (target[i] - current[i]) * 0.12;
+      }
+
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const padding = width < 640
+        ? { top: 34, right: 28, bottom: 52, left: 54 }
+        : { top: 42, right: 42, bottom: 58, left: 66 };
+      const bounds = getPlotBounds([...current, ...target]);
+
+      drawGrid(width, height, padding, bounds);
+      drawSolution(width, height, padding, bounds);
+      drawLabels(width, height, padding);
+
+      ctx.fillStyle = "rgba(15, 124, 128, 0.08)";
+      const pulse = 0.5 + 0.5 * Math.sin(frame * 0.04);
+      const radius = 18 + pulse * 8;
+      const leftY = mapY(current[0], height, padding, bounds);
+      const rightY = mapY(current[current.length - 1], height, padding, bounds);
+      ctx.beginPath();
+      ctx.arc(mapX(0, current.length, width, padding), leftY, radius, 0, Math.PI * 2);
+      ctx.arc(mapX(current.length - 1, current.length, width, padding), rightY, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      requestAnimationFrame(animate);
+    }
+
+    Object.values(controls).forEach((control) => {
+      control.addEventListener("input", updateTarget);
+    });
+
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+    });
+
+    resizeCanvas();
+    updateTarget();
+    animate();
+  </script>
+</body>
+</html>

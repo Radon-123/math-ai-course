@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ODE Solver Step Size Lab</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5c6878;
+      --line: #d4dce6;
+      --panel: #ffffff;
+      --page: #f4f7fb;
+      --accent: #006d77;
+      --accent-2: #b7442e;
+      --accent-3: #6f5aa7;
+      --good: #2f7d4f;
+      --warn: #b76b00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) 360px;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .plot-area,
+    .controls {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .plot-area {
+      min-height: 620px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 16px 18px 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      color: #0c3b5d;
+    }
+
+    .equation {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      min-height: 430px;
+      display: block;
+      flex: 1;
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px 14px 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 70px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 20px;
+    }
+
+    .controls {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: auto;
+    }
+
+    .group {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+    }
+
+    .group:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #0c3b5d;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    select,
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .inline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .value {
+      min-width: 64px;
+      text-align: right;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .toggles {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      min-height: 38px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .key {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 22px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    .swatch.reference {
+      background: var(--accent-2);
+    }
+
+    .swatch.forcing {
+      background: var(--accent-3);
+    }
+
+    .error {
+      color: #9b1c1c;
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    .formula {
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 880px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .plot-area {
+        min-height: 560px;
+      }
+
+      .readouts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding: 10px;
+      }
+
+      .readouts,
+      .toggles {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="plot-area" aria-label="ODE solution plot">
+      <header>
+        <h1>ODE Solver Step Size Lab</h1>
+        <div class="equation" id="equation"></div>
+      </header>
+      <canvas id="plot" width="1100" height="680"></canvas>
+      <div class="readouts">
+        <div class="metric"><span>Steps</span><strong id="stepsOut"></strong></div>
+        <div class="metric"><span>Final y</span><strong id="finalOut"></strong></div>
+        <div class="metric"><span>Reference error</span><strong id="errorOut"></strong></div>
+        <div class="metric"><span>Max |y|</span><strong id="maxOut"></strong></div>
+      </div>
+    </section>
+
+    <aside class="controls" aria-label="ODE controls">
+      <div class="group">
+        <h2>Method</h2>
+        <label>
+          Solver
+          <select id="method">
+            <option value="euler">Euler</option>
+            <option value="heun">Heun / RK2</option>
+            <option value="rk4" selected>Runge-Kutta 4</option>
+            <option value="ab2">Adams-Bashforth 2</option>
+            <option value="be">Backward Euler</option>
+          </select>
+        </label>
+        <label>
+          <span class="inline">Step size h <span class="value" id="hOut"></span></span>
+          <input id="h" type="range" min="0.02" max="0.8" step="0.01" value="0.16">
+        </label>
+        <label>
+          <span class="inline">Final time T <span class="value" id="tOut"></span></span>
+          <input id="tFinal" type="range" min="1" max="10" step="0.25" value="5">
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Model</h2>
+        <label>
+          <span class="inline">Decay lambda <span class="value" id="lambdaOut"></span></span>
+          <input id="lambda" type="range" min="-1" max="8" step="0.1" value="2">
+        </label>
+        <label>
+          <span class="inline">Initial value y0 <span class="value" id="y0Out"></span></span>
+          <input id="y0" type="range" min="-2" max="3" step="0.1" value="1">
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Forcing</h2>
+        <label>
+          Forcing preset
+          <select id="forcingPreset">
+            <option value="none">0</option>
+            <option value="sin" selected>sin(2t)</option>
+            <option value="cos">0.8 cos(3t)</option>
+            <option value="pulse">pulse near t = 2</option>
+            <option value="ramp">0.4t</option>
+            <option value="custom">custom</option>
+          </select>
+        </label>
+        <label>
+          Custom g(t)
+          <input id="customForcing" type="text" value="sin(2*t)" spellcheck="false">
+        </label>
+        <div class="error" id="forcingError"></div>
+      </div>
+
+      <div class="group">
+        <h2>Display</h2>
+        <div class="toggles">
+          <label class="check"><input id="showReference" type="checkbox" checked> Reference</label>
+          <label class="check"><input id="showForcing" type="checkbox" checked> Forcing</label>
+          <label class="check"><input id="showSamples" type="checkbox" checked> Samples</label>
+          <label class="check"><input id="showGrid" type="checkbox" checked> Grid</label>
+        </div>
+      </div>
+
+      <div class="group legend">
+        <div class="key"><span class="swatch"></span> selected solver</div>
+        <div class="key"><span class="swatch reference"></span> fine-step RK4 reference</div>
+        <div class="key"><span class="swatch forcing"></span> scaled forcing g(t)</div>
+        <div class="formula" id="methodFormula"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('plot');
+    const ctx = canvas.getContext('2d');
+    const controls = [
+      'method', 'h', 'tFinal', 'lambda', 'y0', 'forcingPreset', 'customForcing',
+      'showReference', 'showForcing', 'showSamples', 'showGrid'
+    ].map($);
+
+    const presets = {
+      none: {label: '0', expr: '0'},
+      sin: {label: 'sin(2t)', expr: 'sin(2*t)'},
+      cos: {label: '0.8 cos(3t)', expr: '0.8*cos(3*t)'},
+      pulse: {label: 'pulse near t = 2', expr: '2*exp(-8*(t-2)^2)'},
+      ramp: {label: '0.4t', expr: '0.4*t'},
+      custom: {label: 'custom', expr: null}
+    };
+
+    const methods = {
+      euler: 'Euler: y[n+1] = y[n] + h f(t[n], y[n])',
+      heun: 'Heun: average the Euler slope and a predicted-end slope',
+      rk4: 'RK4: weighted average of four slopes inside each step',
+      ab2: 'AB2: y[n+1] = y[n] + h/2 (3 f[n] - f[n-1])',
+      be: 'Backward Euler: y[n+1] = y[n] + h f(t[n+1], y[n+1])'
+    };
+
+    let display = null;
+    let target = null;
+    let lastError = '';
+
+    function compileForcing() {
+      const preset = $('forcingPreset').value;
+      if (preset !== 'custom') {
+        $('customForcing').value = presets[preset].expr;
+      }
+      const raw = $('customForcing').value.trim() || '0';
+      const jsExpr = raw
+        .replace(/\^/g, '**')
+        .replace(/\b(sin|cos|tan|exp|log|sqrt|abs|min|max|pow|PI|E)\b/g, 'Math.$1');
+      try {
+        const fn = new Function('t', `"use strict"; return Number(${jsExpr});`);
+        const test = fn(0.37);
+        if (!Number.isFinite(test)) throw new Error('Expression did not return a finite number.');
+        lastError = '';
+        return {fn, label: raw};
+      } catch (error) {
+        lastError = error.message;
+        return {fn: () => 0, label: raw};
+      }
+    }
+
+    function f(t, y, lambda, g) {
+      return -lambda * y + g(t);
+    }
+
+    function step(method, t, y, h, lambda, g, prevF) {
+      if (method === 'euler') return y + h * f(t, y, lambda, g);
+      if (method === 'heun') {
+        const k1 = f(t, y, lambda, g);
+        const yp = y + h * k1;
+        const k2 = f(t + h, yp, lambda, g);
+        return y + (h / 2) * (k1 + k2);
+      }
+      if (method === 'rk4') {
+        const k1 = f(t, y, lambda, g);
+        const k2 = f(t + h / 2, y + (h / 2) * k1, lambda, g);
+        const k3 = f(t + h / 2, y + (h / 2) * k2, lambda, g);
+        const k4 = f(t + h, y + h * k3, lambda, g);
+        return y + (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+      }
+      if (method === 'be') {
+        return (y + h * g(t + h)) / (1 + h * lambda);
+      }
+      const currentF = f(t, y, lambda, g);
+      return y + (h / 2) * (3 * currentF - prevF);
+    }
+
+    function solve(method, h, tFinal, lambda, y0, g) {
+      const points = [{t: 0, y: y0}];
+      let t = 0;
+      let y = y0;
+      let prevF = f(0, y0, lambda, g);
+      const maxSteps = 2000;
+
+      for (let n = 0; t < tFinal - 1e-12 && n < maxSteps; n++) {
+        const dt = Math.min(h, tFinal - t);
+        let nextY;
+        if (method === 'ab2' && n === 0) {
+          nextY = step('rk4', t, y, dt, lambda, g, prevF);
+        } else {
+          nextY = step(method, t, y, dt, lambda, g, prevF);
+        }
+        if (!Number.isFinite(nextY)) break;
+        prevF = f(t, y, lambda, g);
+        t += dt;
+        y = nextY;
+        points.push({t, y});
+        if (Math.abs(y) > 1e6) break;
+      }
+      return points;
+    }
+
+    function sampleForcing(tFinal, g) {
+      const pts = [];
+      for (let i = 0; i <= 240; i++) {
+        const t = (tFinal * i) / 240;
+        pts.push({t, y: g(t)});
+      }
+      return pts;
+    }
+
+    function domainFor(series) {
+      let ymin = Infinity;
+      let ymax = -Infinity;
+      for (const pts of series) {
+        for (const p of pts) {
+          if (!Number.isFinite(p.y)) continue;
+          ymin = Math.min(ymin, p.y);
+          ymax = Math.max(ymax, p.y);
+        }
+      }
+      if (!Number.isFinite(ymin) || !Number.isFinite(ymax)) return [-1, 1];
+      if (Math.abs(ymax - ymin) < 1e-9) {
+        ymin -= 1;
+        ymax += 1;
+      }
+      const pad = 0.12 * (ymax - ymin);
+      return [ymin - pad, ymax + pad];
+    }
+
+    function drawAxes(map, tFinal, ymin, ymax) {
+      ctx.strokeStyle = '#d4dce6';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#5c6878';
+      ctx.font = '12px Arial';
+      if ($('showGrid').checked) {
+        for (let i = 0; i <= 10; i++) {
+          const x = map.x((tFinal * i) / 10);
+          ctx.beginPath();
+          ctx.moveTo(x, map.y(ymin));
+          ctx.lineTo(x, map.y(ymax));
+          ctx.stroke();
+        }
+        for (let i = 0; i <= 8; i++) {
+          const y = map.y(ymin + ((ymax - ymin) * i) / 8);
+          ctx.beginPath();
+          ctx.moveTo(map.x(0), y);
+          ctx.lineTo(map.x(tFinal), y);
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = '#8b98aa';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(map.x(0), map.y(0));
+      ctx.lineTo(map.x(tFinal), map.y(0));
+      ctx.moveTo(map.x(0), map.y(ymin));
+      ctx.lineTo(map.x(0), map.y(ymax));
+      ctx.stroke();
+      ctx.fillText('t', map.x(tFinal) - 8, map.y(0) - 8);
+      ctx.fillText('y', map.x(0) + 8, map.y(ymax) + 18);
+    }
+
+    function drawSeries(points, map, color, width, dashed = false) {
+      if (points.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dashed ? [10, 8] : []);
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const x = map.x(p.t);
+        const y = map.y(p.y);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawSamples(points, map) {
+      ctx.fillStyle = '#006d77';
+      for (const p of points) {
+        ctx.beginPath();
+        ctx.arc(map.x(p.t), map.y(p.y), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function render() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(640, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(420, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const method = $('method').value;
+      const h = Number($('h').value);
+      const tFinal = Number($('tFinal').value);
+      const lambda = Number($('lambda').value);
+      const y0 = Number($('y0').value);
+      const forcing = compileForcing();
+      const coarse = solve(method, h, tFinal, lambda, y0, forcing.fn);
+      const reference = solve('rk4', Math.min(0.005, h / 20), tFinal, lambda, y0, forcing.fn);
+      const forcingPts = sampleForcing(tFinal, forcing.fn);
+
+      target = {coarse, reference, forcingPts};
+      if (!display || display.coarse.length !== coarse.length) {
+        display = target;
+      } else {
+        for (let i = 0; i < coarse.length; i++) {
+          display.coarse[i].y += 0.18 * (coarse[i].y - display.coarse[i].y);
+        }
+        display.reference = reference;
+        display.forcingPts = forcingPts;
+      }
+
+      const scaledForcing = forcingPts.map((p) => ({t: p.t, y: p.y}));
+      const visible = [display.coarse];
+      if ($('showReference').checked) visible.push(reference);
+      if ($('showForcing').checked) visible.push(scaledForcing);
+      const [ymin, ymax] = domainFor(visible);
+      const pad = {left: 58, right: 22, top: 24, bottom: 42};
+      const width = rect.width;
+      const height = rect.height;
+      const map = {
+        x: (t) => pad.left + (t / tFinal) * (width - pad.left - pad.right),
+        y: (y) => pad.top + ((ymax - y) / (ymax - ymin)) * (height - pad.top - pad.bottom)
+      };
+
+      ctx.clearRect(0, 0, width, height);
+      drawAxes(map, tFinal, ymin, ymax);
+      if ($('showForcing').checked) drawSeries(scaledForcing, map, '#6f5aa7', 2, true);
+      if ($('showReference').checked) drawSeries(reference, map, '#b7442e', 3, false);
+      drawSeries(display.coarse, map, '#006d77', 3.5, false);
+      if ($('showSamples').checked) drawSamples(coarse, map);
+
+      const finalY = coarse.at(-1)?.y ?? NaN;
+      const refY = reference.at(-1)?.y ?? NaN;
+      const err = Math.abs(finalY - refY);
+      const maxY = Math.max(...coarse.map((p) => Math.abs(p.y)));
+
+      $('hOut').textContent = h.toFixed(2);
+      $('tOut').textContent = tFinal.toFixed(2);
+      $('lambdaOut').textContent = lambda.toFixed(1);
+      $('y0Out').textContent = y0.toFixed(1);
+      $('stepsOut').textContent = String(coarse.length - 1);
+      $('finalOut').textContent = Number.isFinite(finalY) ? finalY.toPrecision(4) : 'unstable';
+      $('errorOut').textContent = Number.isFinite(err) ? err.toExponential(2) : 'n/a';
+      $('maxOut').textContent = Number.isFinite(maxY) ? maxY.toPrecision(4) : 'n/a';
+      $('forcingError').textContent = lastError ? `Forcing error: ${lastError}` : '';
+      $('equation').textContent = `y' = -${lambda.toFixed(1)} y + g(t),  y(0) = ${y0.toFixed(1)},  g(t) = ${forcing.label}`;
+      $('methodFormula').textContent = methods[method];
+
+      requestAnimationFrame(render);
+    }
+
+    $('forcingPreset').addEventListener('change', () => {
+      if ($('forcingPreset').value !== 'custom') {
+        $('customForcing').value = presets[$('forcingPreset').value].expr;
+      }
+    });
+
+    $('customForcing').addEventListener('input', () => {
+      $('forcingPreset').value = 'custom';
+    });
+
+    controls.forEach((control) => control.addEventListener('input', () => {
+      display = null;
+    }));
+
+    window.addEventListener('resize', () => {
+      display = null;
+    });
+
+    render();
+  </script>
+</body>
+</html>
